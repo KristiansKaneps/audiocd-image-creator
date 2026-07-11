@@ -1,3 +1,9 @@
+import type { CdTextEncoding } from "./cd-text";
+import { DEFAULT_CD_TEXT_ENCODING } from "./cd-text";
+
+export type { CdTextEncoding };
+export { DEFAULT_CD_TEXT_ENCODING };
+
 export interface AudioTrack {
   id: string;
   file: File;
@@ -26,6 +32,7 @@ export interface BuildOptions {
   albumTitle: string;
   albumArtist: string;
   enableCdText: boolean;
+  cdTextEncoding: CdTextEncoding;
   albumCoverBlob: Blob | null;
 }
 

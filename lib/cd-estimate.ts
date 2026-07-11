@@ -5,11 +5,8 @@ import {
   STANDARD_80MIN_CD_MS,
   STANDARD_80MIN_LABEL_MS,
 } from "./constants";
+import { durationMsToSectorCount, sectorsToMs } from "./duration";
 import type { AudioTrack, BuildOptions, CdImageEstimate } from "./types";
-
-function durationMsToSectorCount(durationMs: number): number {
-  return Math.ceil((durationMs / 1000) * CDDA_FRAMES_PER_SECOND);
-}
 
 function pregapSectorCount(pregapSeconds: number): number {
   return Math.round(pregapSeconds * CDDA_FRAMES_PER_SECOND);
@@ -36,7 +33,7 @@ export function estimateTrackOffsetsMs(
     }
 
     const sectors = durationMsToSectorCount(track.durationMs);
-    currentMs += (sectors / CDDA_FRAMES_PER_SECOND) * 1000;
+    currentMs += sectorsToMs(sectors);
   }
 
   return { offsetsMs, isComplete };

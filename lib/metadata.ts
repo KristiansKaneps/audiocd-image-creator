@@ -1,6 +1,6 @@
 import { parseBlob } from "music-metadata";
 
-import { CD_TEXT_MAX_LENGTH } from "./constants";
+import { parseDurationMs, probeDurationMs } from "./duration";
 import type { AlbumMeta, AudioTrack } from "./types";
 
 const AUDIO_EXTENSIONS = new Set([
@@ -21,15 +21,6 @@ export function isAudioFile(file: File): boolean {
 
   const ext = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
   return AUDIO_EXTENSIONS.has(ext);
-}
-
-export function truncateCdText(value: string): string {
-  const trimmed = value.trim();
-  if (trimmed.length <= CD_TEXT_MAX_LENGTH) {
-    return trimmed;
-  }
-
-  return `${trimmed.slice(0, CD_TEXT_MAX_LENGTH - 1).trimEnd()}…`;
 }
 
 function pickYear(value: unknown): string {
@@ -71,10 +62,11 @@ export async function parseAudioFile(file: File): Promise<AudioTrack> {
   const composer = common.composer?.[0]?.trim() || "";
   const genre = pickGenre(common.genre);
   const year = pickYear(common.year ?? common.date);
-  const durationMs =
-    typeof format.duration === "number"
-      ? Math.round(format.duration * 1000)
-      : null;
+  let durationMs = parseDurationMs(format.duration);
+
+  if (durationMs === null) {
+    durationMs = await probeDurationMs(file);
+  }
 
   const coverPicture = common.picture?.[0];
   const coverBlob = coverPicture

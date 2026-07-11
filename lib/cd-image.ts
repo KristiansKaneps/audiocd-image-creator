@@ -7,15 +7,12 @@ import {
   CDDA_SECTOR_SIZE,
   CDDA_SAMPLES_PER_SECTOR,
 } from "./constants";
+import { formatCdTextValue } from "./cd-text";
 import { decodeFileToCdPcm } from "./decode-audio";
-import { truncateCdText } from "./metadata";
+import { msToCueTimestamp, sectorsToMs } from "./duration";
 import type { AudioTrack, BuildOptions, BuildProgress } from "./types";
 
-export {
-  CDDA_FRAMES_PER_SECOND,
-  CDDA_SAMPLE_RATE,
-  CDDA_SECTOR_SIZE,
-} from "./constants";
+export { msToCueTimestamp } from "./duration";
 
 export interface BuiltCdImage {
   cue: string;
@@ -36,19 +33,6 @@ function normalizePrefix(prefix: string): string {
 
 function escapeCueValue(value: string): string {
   return value.replace(/"/g, '\\"');
-}
-
-export function msToCueTimestamp(ms: number): string {
-  const totalFrames = Math.max(
-    0,
-    Math.round((ms / 1000) * CDDA_FRAMES_PER_SECOND),
-  );
-  const frames = totalFrames % CDDA_FRAMES_PER_SECOND;
-  const totalSeconds = Math.floor(totalFrames / CDDA_FRAMES_PER_SECOND);
-  const seconds = totalSeconds % 60;
-  const minutes = Math.floor(totalSeconds / 60);
-
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}:${String(frames).padStart(2, "0")}`;
 }
 
 function pcmToSectors(pcm: Int16Array): Uint8Array {
@@ -94,8 +78,13 @@ function concatSectors(chunks: Uint8Array[]): Uint8Array {
   return output;
 }
 
-function appendDiscCdTextLine(lines: string[], command: string, value: string) {
-  const normalized = truncateCdText(value);
+function appendDiscCdTextLine(
+  lines: string[],
+  command: string,
+  value: string,
+  encoding: BuildOptions["cdTextEncoding"],
+) {
+  const normalized = formatCdTextValue(value, encoding);
   if (normalized) {
     lines.push(`${command} "${escapeCueValue(normalized)}"`);
   }
@@ -105,8 +94,9 @@ function appendTrackCdTextLine(
   lines: string[],
   command: string,
   value: string,
+  encoding: BuildOptions["cdTextEncoding"],
 ) {
-  const normalized = truncateCdText(value);
+  const normalized = formatCdTextValue(value, encoding);
   if (normalized) {
     lines.push(`    ${command} "${escapeCueValue(normalized)}"`);
   }
@@ -125,19 +115,24 @@ export function buildCueSheet(
   const lines: string[] = [];
 
   if (options.enableCdText) {
+    const { cdTextEncoding } = options;
     lines.push("CD_TEXT");
-    appendDiscCdTextLine(lines, "PERFORMER", options.albumArtist);
-    appendDiscCdTextLine(lines, "TITLE", options.albumTitle);
+    appendDiscCdTextLine(lines, "PERFORMER", options.albumArtist, cdTextEncoding);
+    appendDiscCdTextLine(lines, "TITLE", options.albumTitle, cdTextEncoding);
 
     const albumComposer = tracks.find((track) => track.composer)?.composer ?? "";
-    appendDiscCdTextLine(lines, "SONGWRITER", albumComposer);
+    appendDiscCdTextLine(lines, "SONGWRITER", albumComposer, cdTextEncoding);
 
     if (albumGenre) {
-      lines.push(`REM GENRE ${escapeCueValue(truncateCdText(albumGenre))}`);
+      lines.push(
+        `REM GENRE ${escapeCueValue(formatCdTextValue(albumGenre, cdTextEncoding))}`,
+      );
     }
 
     if (albumYear) {
-      lines.push(`REM DATE ${escapeCueValue(truncateCdText(albumYear))}`);
+      lines.push(
+        `REM DATE ${escapeCueValue(formatCdTextValue(albumYear, cdTextEncoding))}`,
+      );
     }
 
     lines.push("");
@@ -149,13 +144,28 @@ export function buildCueSheet(
     lines.push(`  TRACK ${String(index + 1).padStart(2, "0")} AUDIO`);
 
     if (options.enableCdText) {
-      appendTrackCdTextLine(lines, "TITLE", track.title);
+      appendTrackCdTextLine(
+        lines,
+        "TITLE",
+        track.title,
+        options.cdTextEncoding,
+      );
 
       const performer = track.artist || options.albumArtist;
-      appendTrackCdTextLine(lines, "PERFORMER", performer);
+      appendTrackCdTextLine(
+        lines,
+        "PERFORMER",
+        performer,
+        options.cdTextEncoding,
+      );
 
       if (track.composer) {
-        appendTrackCdTextLine(lines, "SONGWRITER", track.composer);
+        appendTrackCdTextLine(
+          lines,
+          "SONGWRITER",
+          track.composer,
+          options.cdTextEncoding,
+        );
       }
     }
 
@@ -218,7 +228,7 @@ export async function buildCdImage(
 
     const trackSectors = pcmToSectors(pcm);
     sectorChunks.push(trackSectors);
-    currentMs += (trackSectors.length / CDDA_FRAMES_PER_SECOND) * 1000;
+    currentMs += sectorsToMs(trackSectors.length / CDDA_SECTOR_SIZE);
 
     onProgress?.({
       phase: "packing",

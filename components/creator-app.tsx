@@ -18,7 +18,11 @@ import {
   pickDefaultAlbumCover,
   sortTracks,
 } from "@/lib/metadata";
-import type { AudioTrack, BuildProgress } from "@/lib/types";
+import {
+  CD_TEXT_ENCODING_HELP,
+  DEFAULT_CD_TEXT_ENCODING,
+} from "@/lib/cd-text";
+import type { AudioTrack, BuildProgress, CdTextEncoding } from "@/lib/types";
 
 const PATH_PREFIX_HELP =
   "Not required when the .cue and .bin stay together. Leave empty if you extract the ZIP and burn as-is. Use a prefix like AUDIOCD/ only when you want recipients to place files in a subfolder.";
@@ -52,6 +56,9 @@ export function CreatorApp() {
   const [albumCoverBlob, setAlbumCoverBlob] = useState<Blob | null>(null);
   const [pregapSeconds, setPregapSeconds] = useState(2);
   const [enableCdText, setEnableCdText] = useState(true);
+  const [cdTextEncoding, setCdTextEncoding] = useState<CdTextEncoding>(
+    DEFAULT_CD_TEXT_ENCODING,
+  );
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
   const [isBuilding, setIsBuilding] = useState(false);
   const [progress, setProgress] = useState<BuildProgress | null>(null);
@@ -77,6 +84,7 @@ export function CreatorApp() {
       albumTitle: albumTitle.trim() || deriveAlbumMeta(tracks).title,
       albumArtist: albumArtist.trim(),
       enableCdText,
+      cdTextEncoding,
       albumCoverBlob,
     }),
     [
@@ -86,6 +94,7 @@ export function CreatorApp() {
       albumTitle,
       albumArtist,
       enableCdText,
+      cdTextEncoding,
       albumCoverBlob,
       tracks,
     ],
@@ -556,6 +565,32 @@ export function CreatorApp() {
                   </span>
                 </span>
               </label>
+              {enableCdText && (
+                <label className="space-y-2 text-sm sm:col-span-2">
+                  <span className="font-medium text-zinc-700 dark:text-zinc-300">
+                    <HelpTooltip
+                      label="CD-Text character set"
+                      text="On-disc CD-Text is not Unicode. Latin-1 is the usual choice for Western players. ASCII is stricter. Unicode only affects the CUE file text, not what car stereos display."
+                    />
+                  </span>
+                  <select
+                    value={cdTextEncoding}
+                    onChange={(event) =>
+                      setCdTextEncoding(event.target.value as CdTextEncoding)
+                    }
+                    className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 dark:border-zinc-700 dark:bg-zinc-950"
+                  >
+                    <option value="latin1">
+                      Latin-1 (ISO-8859-1, recommended)
+                    </option>
+                    <option value="ascii">ASCII only</option>
+                    <option value="unicode">Unicode (CUE file only)</option>
+                  </select>
+                  <span className="block text-xs text-zinc-500">
+                    {CD_TEXT_ENCODING_HELP[cdTextEncoding]}
+                  </span>
+                </label>
+              )}
             </div>
           </section>
 
